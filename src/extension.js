@@ -24,9 +24,9 @@ const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
 const PopupMenu = imports.ui.popupMenu;
 const PanelMenu = imports.ui.panelMenu;
-const Gettext = imports.gettext;
+const Gettext = imports.gettext.domain('gnome-extension-ofono');
 const Clutter = imports.gi.Clutter;
-const DBus = imports.dbus;
+
 const ModalDialog = imports.ui.modalDialog;
 const ShellEntry = imports.ui.shellEntry;
 const MessageTray = imports.ui.messageTray;
@@ -36,8 +36,6 @@ const _ = Gettext.gettext;
 
 const BUS_NAME = 'org.ofono';
 const DIALOG_TIMEOUT = 120*1000;
-
-let _extension = null;
 
 const State = {
     DISABLED:0,
@@ -87,12 +85,11 @@ function status_to_icon(status) {
     case State.DISABLED:
     case State.NOSIM:
     case State.SIMREADY:
-	return 'network-cellular-umts-symbolic';
+	return 'network-cellular-signal-none-symbolic';
     case State.PINREQUIRED:
     case State.PUKREQUIRED:
 	return 'dialog-password-symbolic';
     case State.AVAILABLE:
-	return 'network-cellular-umts-symbolic';
     case State.GSM:
 	return 'network-cellular-gprs-symbolic';
     case State.EDGE:
@@ -103,133 +100,17 @@ function status_to_icon(status) {
     case State.LTE:
 	return  'network-cellular-4g-symbolic';
     default:
-	return 'network-cellular-umts-symbolic';
+	return 'network-cellular-signal-none-symbolic';
     }
 }
-
-// const APNDialog = new Lang.Class({
-//     Name: 'PinDialog',
-//     Extends: ModalDialog.ModalDialog,
-//     _init: function(path) {
-// 	this.parent({ styleClass: 'prompt-dialog' });
-// 	this.context = new ConnectionContextProxy(Gio.DBus.system, BUS_NAME, path);
-
-// 	/* Create the main container of the dialog */
-// 	let mainContentBox = new St.BoxLayout({ style_class: 'prompt-dialog-main-layout', vertical: false });
-//         this.contentLayout.add(mainContentBox,
-//                                { x_fill: true,
-//                                  y_fill: true });
-
-// 	/* Add the dialog password icon */
-//         let icon = new St.Icon({ icon_name: 'dialog-password-symbolic' });
-//         mainContentBox.add(icon,
-//                            { x_fill:  true,
-//                              y_fill:  false,
-//                              x_align: St.Align.END,
-//                              y_align: St.Align.START });
-
-// 	/* Add a Message to the container */
-//         this.messageBox = new St.BoxLayout({ style_class: 'prompt-dialog-message-layout',
-//                                             vertical: true });
-//         mainContentBox.add(this.messageBox,
-//                            { y_align: St.Align.START });
-
-// 	/* Add a Header Label in the Message */
-//         let subjectLabel = new St.Label({ style_class: 'prompt-dialog-headline',
-// 					  text: "Access Point Name required"});
-
-//         this.messageBox.add(subjectLabel,
-//                        { y_fill:  false,
-//                          y_align: St.Align.START });
-
-// 	/* Create a box container */
-//         this.apnBox = new St.BoxLayout({ vertical: false });
-// 	this.messageBox.add(this.apnBox, { y_fill: true, y_align: St.Align.START, expand: true });
-
-// 	/* PIN Label */
-//         this.apnLabel = new St.Label(({ style_class: 'prompt-dialog-description', text: "APN "}));
-//         this.apnBox.add(this.apnLabel,  { y_fill: false, y_align: St.Align.START });
-
-// 	/* PIN Entry */
-//         this._apnEntry = new St.Entry({ style_class: 'prompt-dialog-password-entry', text: "", can_focus: true });
-//         ShellEntry.addContextMenu(this._apnEntry, { isPassword: false });
-
-//         this.apnBox.add(this._apnEntry, {expand: true, y_align: St.Align.END });
-
-// 	this._apnEntry.clutter_text.connect('text-changed', Lang.bind(this, this.UpdateOK));
-
-//         this.okButton = { label:  _("Set APN"),
-//                            action: Lang.bind(this, this.onOk),
-//                            key:    Clutter.KEY_Return,
-//                          };
-
-//         this.setButtons([{ label: _("Cancel"),
-//                            action: Lang.bind(this, this.onCancel),
-//                            key:    Clutter.KEY_Escape,
-//                          },
-//                          this.okButton]);
-
-// 	this.timeoutid = Mainloop.timeout_add(DIALOG_TIMEOUT, Lang.bind(this, function() {
-// 	    this.onCancel();
-// 	    return false;
-// 	}));
-
-// 	this.open();
-
-// 	this.UpdateOK();
-
-// 	global.stage.set_key_focus(this._apnEntry);
-//     },
-
-//     onOk: function() {
-// 	this.close();
-
-// 	Mainloop.source_remove(this.timeoutid);
-
-// 	let apn = GLib.Variant.new('s', this._apnEntry.get_text());
-// 	this.context.SetPropertyRemote('AccessPointName', apn, Lang.bind(this, function(result, excp) {
-// 		this.destroy();
-// 	}));
-//     },
-
-//     onCancel: function() {
-// 	this.close();
-
-// 	Mainloop.source_remove(this.timeoutid);
-
-// 	this.destroy();
-//     },
-
-//     UpdateOK: function() {
-// 	let enable = false;
-// 	let pass = this._apnEntry.get_text();
-
-// 	    if (pass.length >= 1)
-// 		enable = true;
-// 	    else
-// 		enable = false;
-
-// 	if (enable) {
-// 	    this.okButton.button.reactive = true;
-// 	    this.okButton.button.can_focus = true;
-// 	    this.okButton.button.remove_style_pseudo_class('disabled');
-// 	    this._apnEntry.clutter_text.connect('activate', Lang.bind(this, this.onOk));
-// 	} else {
-// 	    this.okButton.button.reactive = false;
-// 	    this.okButton.button.can_focus = false;
-// 	    this.okButton.button.add_style_pseudo_class('disabled');
-// 	}
-//     }
-// });
-
 
 /* UI PIN DIALOG SECTION */
 const PinDialog = new Lang.Class({
     Name: 'PinDialog',
     Extends: ModalDialog.ModalDialog,
-    _init: function(modem, pin_type, retries) {
+    _init: function(sim_manager, pin_type, retries) {
 	this.parent({ styleClass: 'prompt-dialog' });
-	this.modem = modem;
+	this.sim_manager = sim_manager;
 	this.pin_type = pin_type;
 
 	/* Create the main container of the dialog */
@@ -254,7 +135,7 @@ const PinDialog = new Lang.Class({
 
 	/* Add a Header Label in the Message */
         let subjectLabel = new St.Label({ style_class: 'prompt-dialog-headline',
-					  text: "Authentication required to access SIM"});
+					  text: _("Authentication required to access SIM")});
 
         this.messageBox.add(subjectLabel,
                        { y_fill:  false,
@@ -266,11 +147,11 @@ const PinDialog = new Lang.Class({
 
 	/* Set the description lable according to the pin type */
 	if (pin_type == "pin")
-	    this.descriptionLabel.text = "PIN required to unlock SIM." ;
+	    this.descriptionLabel.text = _("PIN required to unlock SIM.");
 	else if (pin_type == "puk")
-	    this.descriptionLabel.text = "PUK required to unlock PIN";
+	    this.descriptionLabel.text = _("PUK required to unlock PIN");
 	else
-	    this.descriptionLabel.text = pin_type + "required to access SIM";
+	    this.descriptionLabel.text = pin_type + _("required to access SIM");
 
 	/* Create a box container */
         this.pinBox = new St.BoxLayout({ vertical: false });
@@ -282,13 +163,13 @@ const PinDialog = new Lang.Class({
 
 	/* Set the description lable according to the pin type */
 	if (pin_type == "pin")
-	    this.pinLabel.text = "PIN ";
+	    this.pinLabel.text = _("PIN ");
 	else if (pin_type == "puk")
-	    this.pinLabel.text = "PUK        ";
+	    this.pinLabel.text = _("PUK        ");
 	else if (pin_type == "pin2")
-	    this.pinLabel.text = "PIN2 ";
+	    this.pinLabel.text = _("PIN2 ");
 	else if (pin_type == "puk2")
-	    this.pinLabel.text = "PUK2        ";
+	    this.pinLabel.text = _("PUK2        ");
 	else
 	    this.pinLabel.text = pin_type;
 
@@ -311,9 +192,9 @@ const PinDialog = new Lang.Class({
 
 	    /* Set the description lable according to the pin type */
 	    if (pin_type == "puk")
-		this.newpinLabel.text = "New PIN ";
+		this.newpinLabel.text = _("New PIN ");
 	    else if (pin_type == "puk2")
-		this.newpinLabel.text = "New PIN2 ";
+		this.newpinLabel.text = _("New PIN2 ");
 
 	    /* PIN Entry */
             this._newpinEntry = new St.Entry({ style_class: 'prompt-dialog-password-entry', text: "", can_focus: true });
@@ -333,7 +214,7 @@ const PinDialog = new Lang.Class({
 	/* Set the description lable according to the pin type */
 
 	if (pin_type == 'pin' || pin_type == 'puk' || pin_type == 'pin2' || pin_type == 'puk2')
-	    this.retryLabel.text = retries[pin_type] + " attempts left to Unlock.";
+	    this.retryLabel.text = retries[pin_type] + _(" attempts left to Unlock.");
 
         this.okButton = { label:  _("Unlock"),
                            action: Lang.bind(this, this.onOk),
@@ -364,15 +245,20 @@ const PinDialog = new Lang.Class({
 	Mainloop.source_remove(this.timeoutid);
 
 	if (this.pin_type == 'pin' || this.pin_type == 'pin2') {
-	    this.modem.EnterPinRemote(this.pin_type, this._pinEntry.get_text(),  Lang.bind(this, function(result, excp) { 
-		this.destroy();
-	    }));
+	    this.sim_manager.EnterPinRemote(this.pin_type,
+					    this._pinEntry.get_text(),
+					    Lang.bind(this, function(result, excp) {
+						this.destroy();
+					    }));
 	}
 
 	if (this.pin_type == 'puk' || this.pin_type == 'puk2') {
-	    this.modem.ResetPinRemote(this.pin_type, this._pinEntry.get_text(), this._newpinEntry.get_text(), Lang.bind(this, function(result, excp) {
-		this.destroy();
-	    }));
+	    this.sim_manager.ResetPinRemote(this.pin_type,
+					    this._pinEntry.get_text(),
+					    this._newpinEntry.get_text(),
+					    Lang.bind(this, function(result, excp) {
+						this.destroy();
+					    }));
 	}
     },
 
@@ -419,11 +305,30 @@ const PinDialog = new Lang.Class({
     }
 });
 
-/* org.ofono.ConnectionContext Interface */
-const ConnectionContextInterface = <interface name="org.ofono.ConnectionContext">
-<method name="GetProperties">
-    <arg name="properties" type="a{sv}" direction="out"/>
+/*-----DBUS INTERFACE DEFINITIONS START-----*/
+
+/* org.ofono.Manager Interface */
+const ManagerInterface = <interface name="org.ofono.Manager">
+<method name="GetModems">
+    <arg name="modems" type="a(oa{sv})" direction="out"/>
 </method>
+<signal name="ModemAdded">
+    <arg name="path" type="o"/>
+    <arg name="properties" type="a{sv}"/>
+</signal>
+<signal name="ModemRemoved">
+    <arg name="path" type="o"/>
+</signal>
+</interface>;
+
+const ManagerProxy = Gio.DBusProxy.makeProxyWrapper(ManagerInterface);
+
+function Manager() {
+    return new ManagerProxy(Gio.DBus.system, BUS_NAME, '/');
+}
+
+/* org.ofono.Modem Interface */
+const ModemInterface = <interface name="org.ofono.Modem">
 <method name="SetProperty">
     <arg name="name" type="s" direction="in"/>
     <arg name="value" type="v" direction="in"/>
@@ -434,7 +339,37 @@ const ConnectionContextInterface = <interface name="org.ofono.ConnectionContext"
 </signal>
 </interface>;
 
-const ConnectionContextProxy = Gio.DBusProxy.makeProxyWrapper(ConnectionContextInterface);
+const ModemProxy = Gio.DBusProxy.makeProxyWrapper(ModemInterface);
+
+function Modem(path) {
+    return new ModemProxy(Gio.DBus.system, BUS_NAME, path);
+}
+
+/* org.ofono.SimManager Interface */
+const SimManagerInterface = <interface name="org.ofono.SimManager">
+<method name="GetProperties">
+    <arg name="properties" type="a{sv}" direction="out"/>
+</method>
+<method name="SetProperty">
+    <arg name="name" type="s" direction="in"/>
+    <arg name="value" type="v" direction="in"/>
+</method>
+<method name="EnterPin">
+    <arg name="type" type="s" direction="in"/>
+    <arg name="pin" type="s" direction="in"/>
+</method>
+<method name="ResetPin">
+    <arg name="type" type="s" direction="in"/>
+    <arg name="puk" type="s" direction="in"/>
+    <arg name="newpin" type="s" direction="in"/>
+</method>
+<signal name="PropertyChanged">
+    <arg name="name" type="s"/>
+    <arg name="value" type="v"/>
+</signal>
+</interface>;
+
+const SimManagerProxy = Gio.DBusProxy.makeProxyWrapper(SimManagerInterface);
 
 /* org.ofono.ConnectionManager Interface */
 const ConnectionManagerInterface = <interface name="org.ofono.ConnectionManager">
@@ -467,8 +402,8 @@ const ConnectionManagerInterface = <interface name="org.ofono.ConnectionManager"
 
 const ConnectionManagerProxy = Gio.DBusProxy.makeProxyWrapper(ConnectionManagerInterface);
 
-/* org.ofono.SimManager Interface */
-const SimManagerInterface = <interface name="org.ofono.SimManager">
+/* org.ofono.ConnectionContext Interface */
+const ConnectionContextInterface = <interface name="org.ofono.ConnectionContext">
 <method name="GetProperties">
     <arg name="properties" type="a{sv}" direction="out"/>
 </method>
@@ -476,43 +411,22 @@ const SimManagerInterface = <interface name="org.ofono.SimManager">
     <arg name="name" type="s" direction="in"/>
     <arg name="value" type="v" direction="in"/>
 </method>
-<method name="EnterPin">
-    <arg name="type" type="s" direction="in"/>
-    <arg name="pin" type="s" direction="in"/>
-</method>
-<method name="ResetPin">
-    <arg name="type" type="s" direction="in"/>
-    <arg name="puk" type="s" direction="in"/>
-    <arg name="newpin" type="s" direction="in"/>
-</method>
 <signal name="PropertyChanged">
     <arg name="name" type="s"/>
     <arg name="value" type="v"/>
 </signal>
 </interface>;
 
-const SimManagerProxy = Gio.DBusProxy.makeProxyWrapper(SimManagerInterface);
+const ConnectionContextProxy = Gio.DBusProxy.makeProxyWrapper(ConnectionContextInterface);
 
-/* org.ofono.Modem Interface */
-const ModemInterface = <interface name="org.ofono.Modem">
-<method name="SetProperty">
-    <arg name="name" type="s" direction="in"/>
-    <arg name="value" type="v" direction="in"/>
-</method>
-<signal name="PropertyChanged">
-    <arg name="name" type="s"/>
-    <arg name="value" type="v"/>
-</signal>
-</interface>;
-
-const ModemProxy = Gio.DBusProxy.makeProxyWrapper(ModemInterface);
+/*-----DBUS INTERFACE DEFINITIONS STOP-----*/
 
 const ContextItem = new Lang.Class({
     Name: 'ContextItem',
 
-    _init: function(path, properties, modem) {
+    _init: function(path, properties, connmgr) {
 	this.path	= path;
-	this.modem	= modem;
+	this.modem	= connmgr.modem;
 	this.proxy	= new ConnectionContextProxy(Gio.DBus.system, BUS_NAME, path);
 	this.name	= null;
 	this.config	= false;
@@ -532,7 +446,7 @@ const ContextItem = new Lang.Class({
 
 	this.apn = properties.AccessPointName.deep_unpack();
 	if (this.apn == "") {
-	    this.name = _("Click to Configure Internet...");
+	    this.name = _("New Internet Connection");
 	    this.config = false;
 	    Util.spawn(['ofono-wizard', '-p', this.modem.path]);
 	} else {
@@ -573,7 +487,7 @@ const ContextItem = new Lang.Class({
     reconfigure: function() {
         this._ensureSource();
 
-	let title = _("%s - Unable to connect to the network").format(this.modem.name);
+	let title = ("%s").format(this.modem.name) + _("- Unable to connect to the network");
 
         let icon = new St.Icon({ icon_name: 'network-cellular-signal-none-symbolic',
                                  icon_size: MessageTray.NOTIFICATION_ICON_SIZE });
@@ -581,7 +495,7 @@ const ContextItem = new Lang.Class({
         this.notification = new MessageTray.Notification(this._source, title, null,
                                                             { icon: icon, customContent:true });
 
-	this.notification.addBody(_("%s is unable to connect to the network. Make sure you configured the connection correctly or press 'Configure' to configure again.").format(this.modem.name));
+	this.notification.addBody(("%s").format(this.modem.name) + _("is unable to connect to the network. Make sure you configured the connection correctly or press 'Configure' to configure again."));
 	this.notification.addButton('Configure', _("Configure"));
 
 	this.notification.connect('action-invoked', Lang.bind(this, function(self, action) {
@@ -623,8 +537,9 @@ const ContextItem = new Lang.Class({
     modem_not_online: function() {
         this._ensureSource();
 
-	let title = _("%s is not online").format(this.modem.name);
-	let text = _("%s is not connected to the network. Enable Cellular in Connection Manager to activate this connection.").format(this.modem.name);
+	let title = ("%s ").format(this.modem.name) + _("is not online");
+	let text = ("%s").format(this.modem.name) +
+	    _("is not connected to the network. Enable Cellular in Connection Manager to activate this connection.");
 
         let icon = new St.Icon({ icon_name: 'network-cellular-signal-none-symbolic',
                                  icon_size: MessageTray.NOTIFICATION_ICON_SIZE });
@@ -636,7 +551,7 @@ const ContextItem = new Lang.Class({
         this._source.notify(_notification);
     },
 
-    CleanUp: function() {
+    Destroy: function() {
 	if (this.prop_sig)
 	    this.proxy.disconnectSignal(this.prop_sig);
 
@@ -650,31 +565,280 @@ const ContextItem = new Lang.Class({
     }
 });
 
+const ConnectionManager = new Lang.Class({
+    Name: 'ConnectionManager',
+
+    _init: function(modem, path) {
+	this.modem = modem;
+
+	this.proxy = new ConnectionManagerProxy(Gio.DBus.system, BUS_NAME, path);
+	this.internet_context	= null;
+
+	this.roaming_sw		= null;
+	this.roaming_allowed	= false;
+	this.bearer		= "none";
+	this.attached		= false;
+
+	this.proxy.GetPropertiesRemote(Lang.bind(this, this.GetProperties));
+	this.proxy.connectSignal('PropertyChanged', Lang.bind(this, this.PropertyChanged));
+
+	this.ConfigContextMenu();
+
+	this.proxy.GetContextsRemote(Lang.bind(this, this.GetContexts));
+	this.proxy.connectSignal('ContextAdded', Lang.bind(this, this.ContextAdded));
+	this.proxy.connectSignal('ContextRemoved', Lang.bind(this, this.ContextRemoved));
+    },
+
+    start_listening:function(){
+    },
+
+    ConfigContextMenu: function() {
+	this.addcontextitem = new PopupMenu.PopupBaseMenuItem();
+
+	this.add_label = new St.Label();
+	this.add_label.text = _("Configure this Connection");
+	this.addcontextitem.addActor(this.add_label);
+
+	this.addcontextitem.connect('activate', Lang.bind(this, this.config_context));
+
+	this.modem.AddConnectionSection.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+	this.modem.AddConnectionSection.addMenuItem(this.addcontextitem);
+    },
+
+    config_context: function() {
+	if (this.internet_context) {
+	    Util.spawn(['ofono-wizard', '-p', this.modem.path]);
+	}else {
+	    this.proxy.AddContextRemote("internet", Lang.bind(this, function(result, excp){
+	    }));
+	}
+    },
+
+    GetContexts: function(result, exception) {
+	/* result contains the exported Contexts.
+	 * contexts is a array of path and dict a{sv}.
+	 */
+	if (result == null) {
+	    this.start_listening();
+	    this.proxy.AddContextRemote("internet", Lang.bind(this, function(result, excp){
+	    }));
+	    return;
+	}
+
+	let contexts = result[0];
+
+	for each (let [path, properties] in contexts) {
+	    if ((properties.Type.deep_unpack() != "internet"))
+		continue;
+
+	    this.internet_context = new ContextItem(path, properties, this);
+	    this.modem.ContextSection.addMenuItem(this.internet_context.CreateContextItem());
+	    return;
+	}
+
+	if (!this.internet_context) {
+	    this.proxy.AddContextRemote("internet", Lang.bind(this, function(result, excp){
+	    }));
+	}
+    },
+
+    ContextAdded: function(proxy, sender,[path, properties]) {
+	if (this.internet_context)
+	    return;
+
+	if ((properties.Type.deep_unpack() != "internet"))
+	    return;
+
+	this.internet_context = new ContextItem(path, properties, this);
+	this.modem.ContextSection.addMenuItem(this.internet_context.CreateContextItem());
+    },
+
+    ContextRemoved:function(proxy, sender, path) {
+	if (this.internet_context.path != path)
+	    return;
+
+	this.internet_context.Destroy();
+	this.internet_context = null;
+
+	this.proxy.AddContextRemote("internet", Lang.bind(this, function(result, excp){
+	}));
+    },
+
+    GetProperties: function(result, exception) {
+	/* result contains the exported Properties.
+	 * properties is a dict a{sv}. They can be accessed by
+	 * properties.<Property Name>.deep_unpack() which unpacks the variant.
+	 */
+
+	let properties = result[0];
+
+	if (properties.Attached)
+	    this.attached = properties.Attached.deep_unpack();
+
+	if (properties.Bearer)
+	    this.bearer =  properties.Bearer.deep_unpack() ;
+
+	if (properties.RoamingAllowed) {
+	    this.roaming_allowed = properties.RoamingAllowed.deep_unpack();
+	    this.set_roaming_switch();
+	}
+
+	this.modem.update_status();
+    },
+
+    PropertyChanged: function(proxy, sender,[property, value]) {
+	if (property == 'Attached') {
+	    this.attached = value.deep_unpack();
+	} else if (property == 'Bearer') {
+	    this.bearer = value.deep_unpack();
+	} else if (property == 'RoamingAllowed') {
+	    this.roaming_allowed = value.deep_unpack();
+	    this.set_roaming_switch();
+	}
+
+	this.modem.update_status();
+    },
+
+    set_roaming_switch: function() {
+	if (!this.roaming_sw) {
+	    this.roaming_sw = new PopupMenu.PopupSwitchMenuItem(_("Allow Roaming"), this.roaming_allowed);
+
+	    this.roaming_sw.connect('toggled',  Lang.bind(this, function(item, state) {
+		let val = GLib.Variant.new('b', state);
+		this.proxy.SetPropertyRemote('RoamingAllowed', val);
+	    }));
+
+	    this.modem.RoamingSection.addMenuItem(this.roaming_sw);
+	}
+
+	this.roaming_sw.setToggleState(this.roaming_allowed);
+    },
+
+    Destroy: function() {
+	if (this.roaming_sw) {
+	    this.roaming_sw.disconnectAll();
+	    this.roaming_sw.destroy();
+	    this.roaming_sw = null;
+	}
+
+	if (this.addcontextitem) {
+	    this.addcontextitem.disconnectAll();
+	    this.addcontextitem.destroy();
+	}
+
+	if (this.internet_context)
+	    this.internet_context.Destroy();
+    }
+});
+
+const SimManager = new Lang.Class({
+    Name: 'SimManager',
+
+    _init: function(modem, path) {
+	this.modem = modem;
+
+	this.proxy = new SimManagerProxy(Gio.DBus.system, BUS_NAME, path);
+
+	this.sim_present	= false;
+	this.sim_pin		= null;
+	this.sim_pin_retry	= null;
+	this.sim_pin_display	= false;
+
+	this.proxy.GetPropertiesRemote(Lang.bind(this, this.GetProperties));
+	this.proxy.connectSignal('PropertyChanged', Lang.bind(this, this.PropertyChanged));
+    },
+
+    GetProperties: function(result, exception) {
+	/* result contains the exported Properties.
+	 * properties is a dict a{sv}. They can be accessed by
+	 * properties.<Property Name>.deep_unpack() which unpacks the variant.
+	 */
+
+	let properties = result[0];
+
+	if (properties.Present)
+	    this.sim_present = properties.Present.deep_unpack();
+
+	if (properties.PinRequired)
+	    this.sim_pin = properties.PinRequired.deep_unpack();
+
+	if (properties.Retries)
+	    this.sim_pin_retry = properties.Retries.deep_unpack();
+
+	this.enter_pin();
+
+	this.modem.update_status();
+    },
+
+    PropertyChanged: function(proxy, sender,[property, value]) {
+	if (property == 'Present') {
+	    this.sim_present = value.deep_unpack();
+	    this.enter_pin();
+	} else if (property == 'PinRequired') {
+	    this.sim_pin = value.deep_unpack();
+	    this.enter_pin();
+	} else if (property == 'Retries') {
+	    this.sim_pin_retry = value.deep_unpack();
+	    this.enter_pin();
+	}
+
+	this.modem.update_status();
+    },
+
+    enter_pin: function() {
+	if (!this.sim_present || !this.sim_pin || !this.sim_pin_retry ||
+	    (this.sim_pin == 'none') || this.sim_pin_display)
+	    return;
+
+	if (this.sim_pin_retry[this.sim_pin] > 0) {
+	    this.sim_pin_display = true;
+	    this.dialog = new PinDialog(this.proxy, this.sim_pin, this.sim_pin_retry);
+	    this.dialog.connect('destroy', Lang.bind(this, function(){
+		this.sim_pin_display = false;
+	    }));
+	}
+    },
+
+    Destroy: function() {
+	if (this.dialog)
+	    this.dialog.destroy();
+    }
+});
+
 const ModemItem = new Lang.Class({
-    Name: 'Modems.ModemItem',
+    Name: 'ModemItem',
 
     _init: function(path, properties) {
 	this.path	= path;
-	this.proxy	= new ModemProxy(Gio.DBus.system, BUS_NAME, path);
-	this.Item	= new PopupMenu.PopupMenuSection();
+	this.proxy	= new Modem(path);
 	this.contexts	= {};
+
+	/* Create a Menu Item for this modem. */
+	this.Item  = new PopupMenu.PopupMenuSection();
+
+	this.PowerSection = new PopupMenu.PopupMenuSection();
+	this.StatusSection = new PopupMenu.PopupMenuSection();
+	this.RoamingSection = new PopupMenu.PopupMenuSection();
+	this.ContextSection = new PopupMenu.PopupMenuSection();
+	this.AddConnectionSection = new PopupMenu.PopupMenuSection();
+
+	this.Item.addMenuItem(this.PowerSection);
+	this.Item.addMenuItem(this.StatusSection);
+	this.Item.addMenuItem(this.RoamingSection);
+	//this.Item.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+	this.Item.addMenuItem(this.ContextSection);
+	this.Item.addMenuItem(this.AddConnectionSection);
 
 	this.powered		= properties.Powered.deep_unpack();
 	this.online		= properties.Online.deep_unpack();
 	this.type		= properties.Type.deep_unpack();
 	this.interfaces		= null;
-	this.sim_present	= false;
-	this.sim_pin		= null;
-	this.sim_pin_retry	= null;
 	this.status		= State.DISABLED;
-	this.bearer		= "none";
-	this.attached		= false;
-	this.connection_manager = null;
+	this.conn_manager	= null;
 	this.sim_manager	= null;
-	this.roaming_allowed	= null;
 
 	if (properties.Name)
-	    this.name	= properties.Name.deep_unpack();
+	    this.name = properties.Name.deep_unpack();
 	else if (properties.Manufacturer) {
 	    this.manufacturer = properties.Manufacturer.deep_unpack();
 
@@ -688,33 +852,33 @@ const ModemItem = new Lang.Class({
 
 	this.set_interfaces(properties.Interfaces.deep_unpack());
 
-	this.prop_sig = this.proxy.connectSignal('PropertyChanged', Lang.bind(this, function(proxy, sender,[property, value]) {
-		if (property == 'Powered')
-		    this.set_powered(value.deep_unpack());
-		if (property == 'Online')
-		    this.set_online(value.deep_unpack());
-		if (property == 'Manufacturer')
-		    this.set_manufacturer(value.deep_unpack());
-		if (property == 'Model')
-		    this.set_model(value.deep_unpack());
-		if (property == 'Name')
-		    this.set_name(value.deep_unpack());
-		if (property == 'Interfaces')
-		    this.set_interfaces(value.deep_unpack());
-	}));
+	this.proxy.connectSignal('PropertyChanged', Lang.bind(this, this.ModemPropertyChanged));
+    },
+
+    ModemPropertyChanged: function(proxy, sender,[property, value]) {
+	if (property == 'Powered')
+	    this.set_powered(value.deep_unpack());
+	if (property == 'Online')
+	    this.set_online(value.deep_unpack());
+	if (property == 'Manufacturer')
+	    this.set_manufacturer(value.deep_unpack());
+	if (property == 'Model')
+	    this.set_model(value.deep_unpack());
+	if (property == 'Name')
+	    this.set_name(value.deep_unpack());
+	if (property == 'Interfaces')
+	    this.set_interfaces(value.deep_unpack());
     },
 
     CreateMenuItem: function() {
-	/* Create a Menu Item for this modem. */
-	this.sw = new PopupMenu.PopupSwitchMenuItem(null, this.powered);
-	this.sw.label.text = this.name;
+	this.sw = new PopupMenu.PopupSwitchMenuItem(this.name, this.powered);
 
 	this.sw.connect('toggled',  Lang.bind(this, function(item, state) {
 	    let val = GLib.Variant.new('b', state);
 	    this.proxy.SetPropertyRemote('Powered', val);
 	}));
 
-	this.Item.addMenuItem(this.sw);
+	this.PowerSection.addMenuItem(this.sw);
 
 	this.status_section = new PopupMenu.PopupBaseMenuItem();
 
@@ -726,23 +890,27 @@ const ModemItem = new Lang.Class({
 	this.status_label.text = status_to_string(this.status);
 	this.status_section.addActor(this.status_label, { align: St.Align.END });
 
-	this.Item.addMenuItem(this.status_section);
+	this.StatusSection.addMenuItem(this.status_section);
 
 	this.update_status();
+	this.status_section.connect('activate', Lang.bind(this, this.StatusClicked));
 
-	this.status_section.connect('activate', Lang.bind(this, this.clicked));
-
-	if (Object.keys(this.contexts).length > 0) {
-	    for each (let path in Object.keys(this.contexts)) {
-		this.Item.addMenuItem(this.contexts[path].context.CreateContextItem());
-	    }
-	}
 	return this.Item;
+    },
+
+    StatusClicked: function() {
+	if (this.status == State.PINREQUIRED || this.status == State.PUKREQUIRED) {
+	    if (!this.sim_manager)
+		return;
+
+	    this.sim_manager.enter_pin();
+	}
     },
 
     set_powered: function(powered) {
 	this.powered = powered;
-	this.sw.setToggleState(powered);
+	if (this.sw)
+	    this.sw.setToggleState(powered);
 	this.update_status();
     },
 
@@ -757,8 +925,8 @@ const ModemItem = new Lang.Class({
 	    this.name = this.manufacturer + '-' + this.model;
 	else
 	    this.name = this.manufacturer;
-
-	this.sw.label.text = this.name;
+	if (this.sw)
+	    this.sw.label.text = this.name;
     },
 
     set_model: function(model) {
@@ -767,194 +935,28 @@ const ModemItem = new Lang.Class({
 	    this.name = this.manufacturer + '-' + this.model;
 	else
 	    this.name = "Modem" + '-' + this.model;
-	this.sw.label.text = this.name;
+	if (this.sw)
+	    this.sw.label.text = this.name;
     },
 
     set_name: function(name) {
 	this.name = name;
-	this.sw.label.text = this.name;
+	if (this.sw)
+	    this.sw.label.text = this.name;
     },
 
     set_interfaces: function(interfaces) {
-	this.interfaces = interfaces;
-
-	if (this.sim_manager == null && this.interfaces.indexOf('org.ofono.SimManager') != -1) {
-
-	    this.sim_manager = new SimManagerProxy(Gio.DBus.system, BUS_NAME, this.path);
-
-	    this.sim_manager.GetPropertiesRemote(Lang.bind(this, function(result, excp) {
-		/* result contains the exported Properties.
-		 * properties is a dict a{sv}. They can be accessed by
-		 * properties.<Property Name>.deep_unpack() which unpacks the variant.
-		 */
-		let properties = result[0];
-
-		if (properties.Present)
-		    this.sim_present	= properties.Present.deep_unpack();
-		else
-		    this.sim_present	= null;
-
-		if (properties.PinRequired)
-		    this.sim_pin	= properties.PinRequired.deep_unpack();
-		else
-		    this.sim_pin	= null;
-
-		if (properties.Retries)
-		    this.sim_pin_retry	= properties.Retries.deep_unpack();
-		else
-		    this.sim_pin_retry	= null;
-
-		this.dialog		= null;
-
-		this.update_status();
-		this.enter_pin();
-	    }));
-
-	    this.sim_prop_sig = this.sim_manager.connectSignal('PropertyChanged', Lang.bind(this, function(proxy, sender,[property, value]) {
-		if (property == 'Present')
-		    this.set_sim_present(value.deep_unpack());
-		if (property == 'PinRequired')
-		    this.set_sim_pinrequired(value.deep_unpack());
-		if (property == 'Retries')
-		    this.set_sim_pin_retries(value.deep_unpack());
-	    }));
+	if (this.sim_manager == null && interfaces.indexOf('org.ofono.SimManager') != -1) {
+	    this.sim_manager = new SimManager(this, this.path);
 	}
 
-	if (this.connection_manager == null && this.interfaces.indexOf('org.ofono.ConnectionManager') != -1) {
-
-	    this.connection_manager = new ConnectionManagerProxy(Gio.DBus.system, BUS_NAME, this.path);
-
-	    this.connection_manager.GetPropertiesRemote(Lang.bind(this, function(result, excp) {
-		/* result contains the exported Properties.
-		 * properties is a dict a{sv}. They can be accessed by
-		 * properties.<Property Name>.deep_unpack() which unpacks the variant.
-		 */
-		let properties = result[0];
-
-		if (properties.Attached)
-		    this.set_attached(properties.Attached.deep_unpack());
-
-		if (properties.Bearer)
-		    this.set_bearer(properties.Bearer.deep_unpack());
-
-		if (properties.RoamingAllowed)
-		    this.set_roaming(properties.RoamingAllowed.deep_unpack());
-
-	    }));
-
-	    this.connman_prop_sig = this.connection_manager.connectSignal('PropertyChanged', Lang.bind(this, function(proxy, sender,[property, value]) {
-		if (property == 'Attached')
-		    this.set_attached(value.deep_unpack());
-		if (property == 'Bearer')
-		    this.set_bearer(value.deep_unpack());
-		if (property == 'RoamingAllowed')
-		    this.set_roaming(value.deep_unpack());
-	    }));
-
-	    this.connman_sig_contextadd = this.connection_manager.connectSignal('ContextAdded', Lang.bind(this, function(proxy, sender,[path, properties]) {
-		if (Object.getOwnPropertyDescriptor(this.contexts, path)) {
-		    return;
-		}
-
-		this.contexts[path] = { context: new ContextItem(path, properties, this)};
-		this.Item.addMenuItem(this.contexts[path].context.CreateContextItem());
-	    }));
-
-	    this.connman_sig_contextrem = this.connection_manager.connectSignal('ContextRemoved', Lang.bind(this, function(proxy, sender, path) {
-		if (!Object.getOwnPropertyDescriptor(this.contexts, path)) {
-		    return;
-		}
-
-		this.contexts[path].context.CleanUp();
-		delete this.contexts[path];
-
-		if (Object.keys(this.contexts).length == 0) {
-		    this.add_context();
-		}
-	    }));
-
-	    this.connection_manager.GetContextsRemote (Lang.bind(this, function(result, excp) {
-		/* result contains the exported Contexts.
-		 * contexts is a array of path and dict a{sv}.
-		 */
-		if (result == null)
-		    return;
-
-		let contexts = result[0];
-
-		/* If there are no contexts at all , we need to create an internet context */
-		if (contexts.length == 0) {
-		    this.add_context();
-		    return;
-		}
-
-		for each (let [path, properties] in contexts) {
-		    if ((properties.Type.deep_unpack() != "internet"))
-			continue;
-
-		    if (Object.getOwnPropertyDescriptor(this.contexts, path)) {
-			this.contexts[path].context.UpdateProperties(properties);
-		    } else {
-			this.contexts[path] = { context: new ContextItem(path, properties, this)};
-			this.Item.addMenuItem(this.contexts[path].context.CreateContextItem());
-		    }
-		};
-
-		/* If there are no internet contexts found, we need to create one */
-		if (Object.keys(this.contexts).length == 0) {
-		    this.add_context();
-		}
-	    }));
+	if (this.conn_manager == null && interfaces.indexOf('org.ofono.ConnectionManager') != -1) {
+	    this.conn_manager = new ConnectionManager(this, this.path);
 	}
-    },
 
-    add_context: function() {
-	this.add_context_section = new PopupMenu.PopupBaseMenuItem();
-	let label = new St.Label();
-	label.text = _("Click to add Internet connection..");
-	this.add_context_section.addActor(label);
-
-	this.Item.addMenuItem(this.add_context_section);
-
-	this.add_context_section.connect('activate', Lang.bind(this, function(){
-
-	    let val = GLib.Variant.new('s', "internet");
-	    this.connection_manager.AddContextRemote("internet", Lang.bind(this, function(result, excp) {
-	    }));
-
-	    this.add_context_section.destroy();
-	}));
-    },
-
-    set_sim_present: function(present) {
-	this.sim_present = present;
-	this.update_status();
-    },
-
-    set_sim_pinrequired: function(pinrequired) {
-	this.sim_pin = pinrequired;
-	this.update_status();
-	this.enter_pin();
-    },
-
-    set_sim_pin_retries: function(retries) {
-	this.sim_pin_retry = retries;
-	this.enter_pin();
-    },
-
-    enter_pin: function() {
-	if (this.sim_pin == null || this.sim_pin_retry == null)
-	    return;
-
-	if (this.sim_pin == 'none')
-	    return;
-
-	if (this.sim_pin_retry[this.sim_pin] > 0) {
-	    if (this.dialog)
-		this.dialog.destroy();
-
-	    if (this.dialog == null)
-		this.dialog = new PinDialog(this.sim_manager, this.sim_pin, this.sim_pin_retry);
+	if (this.conn_manager && interfaces.indexOf('org.ofono.ConnectionManager') == -1) {
+	    this.conn_manager.Destroy();
+	    this.conn_manager = null;
 	}
     },
 
@@ -962,28 +964,31 @@ const ModemItem = new Lang.Class({
 	if (this.powered == false) {
 	    this.status = State.DISABLED;
 	}else {
-	    if (this.sim_present == false) {
+	    if (this.sim_manager && this.sim_manager.sim_present == false) {
 		this.status = State.NOSIM;
 	    } else {
-		if (this.sim_pin && this.sim_pin != "none") {
+		if (this.sim_manager && this.sim_manager.sim_pin && this.sim_manager.sim_pin != "none") {
 		    /* Handle all values? */
-		    if (this.sim_pin == "pin" || this.sim_pin == "pin2")
+		    if (this.sim_manager.sim_pin == "pin" || this.sim_manager.sim_pin == "pin2")
 			this.status = State.PINREQUIRED;
-		    else if (this.sim_pin == "puk" || this.sim_pin == "puk2")
+		    else if (this.sim_manager.sim_pin == "puk" || this.sim_manager.sim_pin == "puk2")
 			this.status = State.PUKREQUIRED;
 		    else
 			this.status = State.PINREQUIRED;
 		} else {
-		    if (this.attached == true) {
-			if (this.bearer == 'gsm')
+		    if (this.conn_manager && this.conn_manager.attached == true) {
+			if (this.conn_manager.bearer == 'gsm')
 			    this.status = State.GSM;
-			else if (this.bearer == 'edge')
+			else if (this.conn_manager && this.conn_manager.bearer == 'edge')
 			    this.status = State.EDGE;
-			else if (this.bearer == 'umts')
+			else if (this.conn_manager && this.conn_manager.bearer == 'umts')
 			    this.status = State.UMTS;
-			else if (this.bearer == 'hsdpa' || this.bearer == 'hsupa' || this.bearer == 'hspa')
+			else if (this.conn_manager &&
+				 (this.conn_manager.bearer == 'hsdpa' ||
+				 this.conn_manager.bearer == 'hsupa' ||
+				 this.conn_manager.bearer == 'hspa'))
 			    this.status = State.HSPA;
-			else if (this.bearer == 'lte')
+			else if (this.conn_manager && this.conn_manager.bearer == 'lte')
 			    this.status = State.LTE;
 			else
 			    this.status = State.AVAILABLE;
@@ -996,201 +1001,83 @@ const ModemItem = new Lang.Class({
 	if (this.status_label)
 	    this.status_label.text = status_to_string(this.status);
 
-	_extension.update_icon();
+	OfonoMgr.UpdateIcon();
     },
 
-    set_attached: function(attached) {
-	this.attached = attached;
-	this.update_status();
-    },
-
-    set_bearer: function(bearer) {
-	this.bearer = bearer;
-	this.update_status();
-    },
-
-    set_roaming: function(roaming) {
-	if (this.roaming_allowed == null) {
-	    this.roaming_allowed = new PopupMenu.PopupSwitchMenuItem(null, roaming);
-	    this.roaming_allowed.label.text = "Allow Roaming";
-
-	    this.roaming_allowed.connect('toggled',  Lang.bind(this, function(item, state) {
-		let val = GLib.Variant.new('b', state);
-		this.connection_manager.SetPropertyRemote('RoamingAllowed', val);
-	    }));
-
-	    this.Item.addMenuItem(this.roaming_allowed);
-	} else
-	    this.roaming_allowed.setToggleState(roaming);
-    },
-
-    clicked: function() {
-	if (this.sim_pin && this.sim_pin == "none")
-	    return;
-
-	if (this.sim_manager && this.sim_pin && (this.sim_pin_retry[this.sim_pin] >= 0))
-	    this.dialog = new PinDialog(this.sim_manager, this.sim_pin, this.sim_pin_retry);
-    },
-
-    UpdateProperties: function(properties) {
-
-    },
-
-    CleanUp: function() {
-	if (this.prop_sig)
-	    this.proxy.disconnectSignal(this.prop_sig);
-
-	if (this.sim_prop_sig)
-	    this.sim_manager.disconnectSignal(this.sim_prop_sig);
-
-	if (this.connman_prop_sig)
-	    this.connection_manager.disconnectSignal(this.connman_prop_sig);
-
-	if (this.connman_sig_contextadd)
-	    this.connection_manager.disconnectSignal(this.connman_sig_contextadd);
-
-	if (this.connman_sig_contextrem)
-	    this.connection_manager.disconnectSignal(this.connman_sig_contextrem);
-
-	if (this.contexts) {
-	    for each (let path in Object.keys(this.contexts)) {
-		this.contexts[path].context.CleanUp();
-		delete this.contexts[path];
-            }
-
-	    delete this.contexts;
+    Destroy: function() {
+	if (this.sim_manager) {
+	    this.sim_manager.Destroy();
+	    this.sim_manager = null;
 	}
 
-	if (this.Item)
+	if (this.conn_manager) {
+	    this.conn_manager.Destroy();
+	    this.conn_manager = null;
+	}
+
+	if (this.Item) {
+	    this.sw.disconnectAll();
+	    this.sw.destroy();
+	    this.PowerSection.destroy();
+
+	    this.status_section.disconnectAll();
+	    this.status_section.destroy();
+	    this.StatusSection.destroy();
+
+	    this.RoamingSection.destroy();
+	    this.ContextSection.destroy();
+	    this.AddConnectionSection.destroy();
+
 	    this.Item.destroy();
 
-	if (this.dialog)
-	    this.dialog.destroy();
-
+	    this.Item = null;
+	}
     }
 });
 
-/* org.ofono.Manager Interface */
-const ManagerInterface = <interface name="org.ofono.Manager">
-<method name="GetModems">
-    <arg name="modems" type="a(oa{sv})" direction="out"/>
-</method>
-<signal name="ModemAdded">
-    <arg name="path" type="o"/>
-    <arg name="properties" type="a{sv}"/>
-</signal>
-<signal name="ModemRemoved">
-    <arg name="path" type="o"/>
-</signal>
-</interface>;
+let start_listening = false;
 
-const ManagerProxy = Gio.DBusProxy.makeProxyWrapper(ManagerInterface);
-
-function Manager() {
-    return new ManagerProxy(Gio.DBus.system, BUS_NAME, '/');
-}
-
-const ofonoManager = new Lang.Class({
-    Name: 'ofonoManager',
-    Extends: PanelMenu.SystemStatusButton,
-    run: false,
-    _menuopen: false,
+const OfonoManager = new Lang.Class({
+    Name: 'OfonoManager',
 
     _init: function() {
-	this.parent('network-cellular-umts-symbolic', _("ofono"));
-	this.ofonoVanished();
-	this.watch = Gio.DBus.system.watch_name(BUS_NAME, Gio.BusNameWatcherFlags.NONE,
-						Lang.bind(this, this.ofonoAppeared),
-						Lang.bind(this, this.ofonoVanished) );
-    },
+	this.modems = {};
+	this._added = false;
 
-    ofonoAppeared: function() {
-	if (this._no_ofono) {
-	    this._no_ofono.destroy();
-	    this._no_ofono = null;
-	}
+	if (!OfonoMenu)
+	    OfonoMenu = new PanelMenu.SystemStatusButton('network-cellular-signal-none-symbolic', _("Ofono"));
 
 	this.manager = new Manager();
-	this.modems = {};
+	start_listening = false;
 
-	this.manager_sig_modemadd = this.manager.connectSignal('ModemAdded', Lang.bind(this, function(proxy, sender,[path, properties]) {
-	    if (Object.getOwnPropertyDescriptor(this.modems, path)) {
-		return;
-	    }
-
-	    /*Do not add test modems */
-	    if (properties.Type.deep_unpack() == "test")
-		    return;
-
-	    this.no_modems(false);
-
-	    this.modems[path] = {modem: new ModemItem(path, properties), sep: new PopupMenu.PopupSeparatorMenuItem()};
-	    this.menu.addMenuItem(this.modems[path].modem.CreateMenuItem());
-	    this.menu.addMenuItem(this.modems[path].sep);
-	}));
-
-	this.manager_sig_modemrem = this.manager.connectSignal('ModemRemoved', Lang.bind(this, function(proxy, sender, path) {
-	    if (!Object.getOwnPropertyDescriptor(this.modems, path)) {
-		return;
-	    }
-
-	    this.modems[path].modem.CleanUp();
-	    this.modems[path].sep.destroy();
-	    delete this.modems[path];
-
-
-	    let mod_list = Object.getOwnPropertyNames(this.modems)
-	    if (mod_list.length == 0) {
-		this.no_modems(true);
-		return;
-	    }
-
-	    this.update_icon();
-	}));
-
-	this.manager.GetModemsRemote(Lang.bind(this, this.get_modems));
+	this.manager.GetModemsRemote(Lang.bind(this, this.ManagerGetModems));
     },
 
-    ofonoVanished: function() {
-
-	if (this.modems) {
-	    for each (let path in Object.keys(this.modems)) {
-		this.modems[path].modem.CleanUp();
-		delete this.modems[path];
-            }
-
-	    delete this.modems;
-	}
-
-	this.setIcon('network-cellular-umts-symbolic');
-
-	this.no_modems(false);
-
-	if (this._no_ofono)
+    StartListening: function() {
+	if (this.start_listening)
 	    return;
 
-	this._no_ofono = new PopupMenu.PopupMenuSection();
-	let no_ofonod = new PopupMenu.PopupMenuItem(_("oFono is not running"),
-			{ reactive: false, style_class: 'popup-inactive-menu-item' });
-
-	this._no_ofono.addMenuItem(no_ofonod);
-	this.menu.addMenuItem(this._no_ofono);
+	start_listening = true;
+	this.manager.connectSignal('ModemAdded', Lang.bind(this, this.ManagerModemAdded));
+	this.manager.connectSignal('ModemRemoved', Lang.bind(this, this.ManagerModemRemoved));
     },
 
-    get_modems: function(result, excp) {
+    ManagerGetModems: function(result, excp) {
 	/* result contains the exported Modems.
 	 * modems is a array: a(oa{sv}), each element consists of [path, Properties]
 	*/
-	if (result == null)
+
+	if (excp || !result) {
+	    this.StartListening();
 	    return;
+	}
 
 	let modem_array = result[0];
 
 	if (modem_array.length == 0) {
-	    this.no_modems(true);
+	    this.StartListening();
 	    return;
-	} else
-	    this.no_modems(false);
+	}
 
 	for each (let [path, properties] in modem_array) {
 	    if (Object.getOwnPropertyDescriptor(this.modems, path)) {
@@ -1200,35 +1087,69 @@ const ofonoManager = new Lang.Class({
 		if (properties.Type.deep_unpack() == "test")
 		    continue;
 
-		this.modems[path] = { modem: new ModemItem(path, properties), sep: new PopupMenu.PopupSeparatorMenuItem()};
-		this.menu.addMenuItem(this.modems[path].modem.CreateMenuItem());
-		this.menu.addMenuItem(this.modems[path].sep);
+		this.modems[path] = { modem: new ModemItem(path, properties),
+				      seperator: new PopupMenu.PopupSeparatorMenuItem()};
+
+		if (Object.keys(this.modems).length > 1)
+		    OfonoMenu.menu.addMenuItem(this.modems[path].separator);
+
+		OfonoMenu.menu.addMenuItem(this.modems[path].modem.CreateMenuItem());
 	    }
 	}
 
-	if (Object.keys(this.modems).length == 0)
-	    this.no_modems(true);
-    },
-
-    no_modems: function(add) {
-	if (add) {
-	    this.no_modems_item = new PopupMenu.PopupMenuSection();
-	    let no_modem_label = new PopupMenu.PopupMenuItem(_("No Modems detected"),
-				{ reactive: false, style_class: 'popup-inactive-menu-item' });
-
-	    this.no_modems_item.addMenuItem(no_modem_label);
-	    this.menu.addMenuItem(this.no_modems_item);
-
-	    this.update_icon();
-	} else {
-	    if (this.no_modems_item) {
-		this.no_modems_item.destroy();
-		this.no_modems_item = null;
-	    }
+	if (Object.keys(this.modems).length > 0 && !this._added) {
+	    this._added = true;
+	    Main.panel.addToStatusArea('Ofono', OfonoMenu);
+	    this.StartListening();
 	}
     },
 
-    update_icon:function() {
+    ManagerModemAdded: function(proxy, sender, [path, properties]) {
+	if (!start_listening)
+	    return;
+
+	if (Object.getOwnPropertyDescriptor(this.modems, path)) {
+	    return;
+	}
+
+	/*Do not add test modems */
+	if (properties.Type.deep_unpack() == "test")
+	    return;
+
+	if (!OfonoMenu)
+	    OfonoMenu = new PanelMenu.SystemStatusButton('network-cellular-signal-none-symbolic', _("Ofono"));
+
+	this.modems[path] = { modem: new ModemItem(path, properties),
+			      seperator: new PopupMenu.PopupSeparatorMenuItem()};
+
+	if (Object.keys(this.modems).length > 1)
+	    OfonoMenu.menu.addMenuItem(this.modems[path].separator);
+
+	OfonoMenu.menu.addMenuItem(this.modems[path].modem.CreateMenuItem());
+
+	if (!this._added) {
+	    this._added = true;
+	    Main.panel.addToStatusArea('Ofono', OfonoMenu);
+	}
+    },
+
+    ManagerModemRemoved: function(proxy, sender, path) {
+	if (!Object.getOwnPropertyDescriptor(this.modems, path)) {
+	    return;
+	}
+
+	this.modems[path].modem.Destroy();
+	this.modems[path].seperator.destroy();
+	delete this.modems[path];
+
+	if (!Object.keys(this.modems).length) {
+	    OfonoMenu.destroy();
+	    OfonoMenu = null;
+	    this._added = false;
+	}
+    },
+
+    UpdateIcon:function() {
 	let _status = State.DISABLED;
 
 	if (this.modems) {
@@ -1238,22 +1159,60 @@ const ofonoManager = new Lang.Class({
             }
 	}
 
-	_extension.setIcon(status_to_icon(_status));
+	if (OfonoMenu)
+	    OfonoMenu.setIcon(status_to_icon(_status));
+    },
+
+    Destroy: function() {
+        let path;
+        let modems = Object.getOwnPropertyNames(this.modems);
+	for each (path in modems) {
+            this.modems[path].modem.Destroy();
+	        delete this.modems[path];
+        }
+
+	if (OfonoMenu) {
+	    OfonoMenu.destroy();
+	    OfonoMenu = null;
+	}
     }
-})
+});
+
+let OfonoMgr;
+let OfonoMenu;
+let OfonoWatch;
+
+function OfonoAppeared() {
+    if (OfonoMgr)
+	return;
+
+    OfonoMgr = new OfonoManager();
+}
+
+function OfonoVanished() {
+    if (OfonoMgr) {
+        OfonoMgr.Destroy();
+	OfonoMgr = null;
+    }
+}
 
 function init() {
-    //Nothing to do here.
 }
 
 function enable() {
-    _extension = new ofonoManager();
-    Main.panel.addToStatusArea('oFono', _extension);
+    if (!OfonoWatch) {
+	OfonoWatch = Gio.DBus.system.watch_name(BUS_NAME,
+					    Gio.BusNameWatcherFlags.NONE,
+					    OfonoAppeared,
+					    OfonoVanished);
+    }
 }
 
 function disable() {
-    Gio.DBus.system.unwatch_name(_extension.watch);
-    _extension.destroy();
+    OfonoVanished();
 
-    _extension = null;
+    if (OfonoWatch) {
+	Gio.DBus.system.unwatch_name(OfonoWatch);
+	OfonoWatch = null;
+    }
 }
