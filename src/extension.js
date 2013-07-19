@@ -589,9 +589,6 @@ const ConnectionManager = new Lang.Class({
 	this.proxy.connectSignal('ContextRemoved', Lang.bind(this, this.ContextRemoved));
     },
 
-    start_listening:function(){
-    },
-
     ConfigContextMenu: function() {
 	this.addcontextitem = new PopupMenu.PopupBaseMenuItem();
 
@@ -619,7 +616,6 @@ const ConnectionManager = new Lang.Class({
 	 * contexts is a array of path and dict a{sv}.
 	 */
 	if (result == null) {
-	    this.start_listening();
 	    this.proxy.AddContextRemote("internet", Lang.bind(this, function(result, excp){
 	    }));
 	    return;
@@ -1054,7 +1050,7 @@ const OfonoManager = new Lang.Class({
     },
 
     StartListening: function() {
-	if (this.start_listening)
+	if (start_listening)
 	    return;
 
 	start_listening = true;
@@ -1100,8 +1096,9 @@ const OfonoManager = new Lang.Class({
 	if (Object.keys(this.modems).length > 0 && !this._added) {
 	    this._added = true;
 	    Main.panel.addToStatusArea('Ofono', OfonoMenu);
-	    this.StartListening();
 	}
+
+	this.StartListening();
     },
 
     ManagerModemAdded: function(proxy, sender, [path, properties]) {
