@@ -1079,8 +1079,8 @@ const OfonoManager = new Lang.Class({
 	    if (Object.getOwnPropertyDescriptor(this.modems, path)) {
 		this.modems[path].modem.UpdateProperties(properties);
 	    } else {
-		/* Do not Add test modems */
-		if (properties.Type.deep_unpack() == "test")
+		/* Do not Add test or hfp modems */
+		if (properties.Type.deep_unpack() != "hardware")
 		    continue;
 
 		this.modems[path] = { modem: new ModemItem(path, properties),
@@ -1109,8 +1109,8 @@ const OfonoManager = new Lang.Class({
 	    return;
 	}
 
-	/*Do not add test modems */
-	if (properties.Type.deep_unpack() == "test")
+	/*Do not add test or hfp modems */
+	if (properties.Type.deep_unpack() != "hardware")
 	    return;
 
 	if (!OfonoMenu)
